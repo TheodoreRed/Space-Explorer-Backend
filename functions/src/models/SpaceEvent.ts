@@ -1,3 +1,5 @@
+import { ObjectId } from "mongodb";
+
 interface ServiceProvider {
   id: number;
   name: string; // Name of the service provider (e.g., "NASA")
@@ -45,6 +47,7 @@ interface SpaceStation {
   founded: string;
   description: string; // Description of the space station
   image_url: string; // URL to an image of the space station
+  status: Status;
 }
 
 interface Agency {
@@ -63,9 +66,15 @@ interface Program {
   agencies: Agency[]; // Agencies involved in the program
 }
 
+interface Status {
+  id: number;
+  name: string;
+}
+
 interface Launch {
   id: string;
   name: string; // Name of the launch
+  status: Status;
   probability?: number | null; // Probability of launch
   launch_service_provider: ServiceProvider;
   rocket: Rocket; // Rocket used for the launch
@@ -80,7 +89,17 @@ interface SpaceEventType {
   name: string;
 }
 
+interface Expedition {
+  id: number;
+  url: string;
+  name: string;
+  start: string;
+  end?: string | null;
+  spacestation: SpaceStation;
+}
+
 export default interface SpaceEvent {
+  _id: ObjectId;
   id: number;
   name: string; // Name of the event
   type: SpaceEventType; // Type of the event, e.g., "Spacecraft Release"
@@ -91,6 +110,7 @@ export default interface SpaceEvent {
   feature_image?: string | null; // URL to a featured image of the event
   date: string; // The date and time of the event
   launches: Launch[]; // Array of launches related to the event
+  expeditions: Expedition[];
   spacestations: SpaceStation[]; // Array of space stations related to the event
   program: Program[]; // Array of programs related to the event
 }
