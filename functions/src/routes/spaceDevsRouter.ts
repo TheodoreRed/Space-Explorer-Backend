@@ -6,29 +6,48 @@ import { errorResponse } from "./accountsRouter";
 
 const spaceDevsRouter = express.Router();
 
-// Route to fetch and save space events
-spaceDevsRouter.get("/", async (req, res) => {
+const fetchSpaceEvents = async () => {
   try {
-    // Fetch data from the third-party API
-    const spaceEvents: SpaceEvent[] = (
-      await axios.get(
-        "https://ll.thespacedevs.com/2.0.0/event/upcoming/?limit=1000&offset=0"
-      )
-    ).data.results;
+    const response = await axios.get(
+      "https://ll.thespacedevs.com/2.0.0/event/upcoming/?limit=1000&offset=0",
+      { timeout: 10000 }
+    );
+    return response.data.results;
+  } catch (error) {
+    console.error("Error fetching space events:", error);
+  }
+};
 
+setInterval(async () => {
+  console.log("UPDATED THE DATABASE AT", new Date());
+
+  const spaceEvents = await fetchSpaceEvents();
+  if (spaceEvents) {
+    try {
+      const client = await getClient();
+      await client
+        .db()
+        .collection<SpaceEvent>("SpaceEvents")
+        .insertMany(spaceEvents);
+    } catch (error) {
+      console.error("Error saving space events:", error);
+    }
+  }
+}, 1200000); // 20 minutes
+
+spaceDevsRouter.get(`/`, async (req, res) => {
+  try {
     const client = await getClient();
-    const response = await client
+    const spaceEvents: SpaceEvent[] = await client
       .db()
       .collection<SpaceEvent>("SpaceEvents")
-      .insertMany(spaceEvents);
+      .find()
+      .toArray();
 
-    if (response.insertedCount) {
-      res
-        .status(200)
-        .json({ message: "Space events fetched and saved successfully" });
-    } else {
-      res.status(404).json({ message: "Error fetching Space Events" });
+    if (!spaceEvents) {
+      res.status(404).json({ message: "Failed to GET all space events" });
     }
+    res.status(200).json(spaceEvents);
   } catch (error) {
     errorResponse(error, res);
   }
