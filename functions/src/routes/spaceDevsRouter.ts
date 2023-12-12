@@ -9,8 +9,8 @@ const spaceDevsRouter = express.Router();
 const fetchSpaceEvents = async () => {
   try {
     const response = await axios.get(
-      "https://ll.thespacedevs.com/2.0.0/event/upcoming/?limit=1000&offset=0",
-      { timeout: 10000 }
+      "https://ll.thespacedevs.com/2.0.0/event/upcoming/?limit=50&offset=0",
+      { timeout: 90000 }
     );
     return response.data.results;
   } catch (error) {
@@ -25,10 +25,17 @@ setInterval(async () => {
   if (spaceEvents) {
     try {
       const client = await getClient();
-      await client
-        .db()
-        .collection<SpaceEvent>("SpaceEvents")
-        .insertMany(spaceEvents);
+
+      for (const event of spaceEvents) {
+        const query = { id: event.id };
+        const update = { $set: event };
+        const options = { upsert: true };
+
+        await client
+          .db()
+          .collection<SpaceEvent>("SpaceEvents")
+          .updateOne(query, update, options);
+      }
     } catch (error) {
       console.error("Error saving space events:", error);
     }
