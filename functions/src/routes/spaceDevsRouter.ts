@@ -31,22 +31,27 @@ const fetchSpaceEvents = async (retryCount = 0): Promise<SpaceEvent[]> => {
 
 // Database update logic
 const updateDatabase = async () => {
-  console.log("UPDATED THE DATABASE AT", new Date());
+  console.log("Attempting to update database...", new Date());
   try {
     const spaceEvents = await fetchSpaceEvents();
+
     if (spaceEvents) {
+      console.log("Space Event were fetched...");
       const client = await getClient();
       for (const event of spaceEvents) {
         const query = { id: event.id };
         const update = { $set: event };
         const options = { upsert: true };
-        event.interested = 0;
-        event.comments = [];
+        event.interested = event.interested ?? 0;
+        event.comments = event.comments ?? [];
         await client
           .db()
           .collection<SpaceEvent>("SpaceEvents")
           .updateOne(query, update, options);
       }
+      console.log("Space Event Update Successful");
+    } else {
+      console.log("Space Events were not fetched!!");
     }
   } catch (error) {
     console.error("Error updating database with space events:", error);
