@@ -98,8 +98,25 @@ interface Expedition {
   spacestation: SpaceStation;
 }
 
+interface SpaceEventCommentReply {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  comment: string;
+  likes: number; // Number of likes for the reply
+}
+
+interface SpaceEventComment {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  comment: string;
+  likes: number; // Number of likes for the comment
+  replies: SpaceEventCommentReply[]; // Replies to the comment
+}
+
 export default interface SpaceEvent {
-  _id: ObjectId;
+  _id?: ObjectId;
   id: number;
   name: string; // Name of the event
   type: SpaceEventType; // Type of the event, e.g., "Spacecraft Release"
@@ -113,4 +130,6 @@ export default interface SpaceEvent {
   expeditions: Expedition[];
   spacestations: SpaceStation[]; // Array of space stations related to the event
   program: Program[]; // Array of programs related to the event
+  interested?: number;
+  comments: SpaceEventComment[];
 }
