@@ -30,7 +30,7 @@ const fetchSpaceEvents = async (retryCount = 0): Promise<SpaceEvent[]> => {
 };
 
 // Database update logic
-const updateDatabase = async () => {
+export const updateDatabase = async () => {
   console.log("Attempting to update database...", new Date());
   try {
     const spaceEvents = await fetchSpaceEvents();
@@ -58,8 +58,6 @@ const updateDatabase = async () => {
   }
 };
 
-setInterval(updateDatabase, 1200000); // 20 minutes
-
 spaceDevsRouter.get(`/`, async (req, res) => {
   try {
     const client = await getClient();
@@ -70,11 +68,13 @@ spaceDevsRouter.get(`/`, async (req, res) => {
       .toArray();
 
     if (!spaceEvents) {
-      res.status(404).json({ message: "Failed to GET all space events" });
+      return res
+        .status(404)
+        .json({ message: "Failed to GET all space events" });
     }
     res.status(200).json(spaceEvents);
   } catch (error) {
-    errorResponse(error, res);
+    return errorResponse(error, res);
   }
 });
 
@@ -92,6 +92,37 @@ spaceDevsRouter.get(`/:id`, async (req, res) => {
     }
 
     return res.status(200).json(event);
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+// PATCH route to update 'interested' count of a SpaceEvent
+spaceDevsRouter.patch("/:id/interested", async (req, res) => {
+  const eventId = new ObjectId(req.params.id);
+  const interestedCount = req.body.interested;
+
+  // Validate interestedCount
+  if (typeof interestedCount !== "number" || interestedCount < 0) {
+    return res
+      .status(400)
+      .json({ message: "Invalid 'interested' count provided" });
+  }
+
+  try {
+    const client = await getClient();
+    const result = await client
+      .db()
+      .collection<SpaceEvent>("SpaceEvents")
+      .updateOne({ _id: eventId }, { $set: { interested: interestedCount } });
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Space event not found" });
+    }
+
+    return res
+      .status(200)
+      .json({ message: "Space event updated successfully" });
   } catch (error) {
     return errorResponse(error, res);
   }
