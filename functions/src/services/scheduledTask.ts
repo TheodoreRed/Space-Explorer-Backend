@@ -8,7 +8,7 @@ admin.initializeApp();
 
 // Scheduled Cloud Function to update database every 20 minutes
 export const scheduledSpaceEventUpdate = functions.pubsub
-  .schedule("every 20 minutes")
+  .schedule("every 5 minutes")
   .onRun(async (context) => {
     console.log("Scheduled update of space events started");
     try {

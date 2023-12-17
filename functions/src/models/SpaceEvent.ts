@@ -132,4 +132,5 @@ export default interface SpaceEvent {
   program: Program[]; // Array of programs related to the event
   interested?: number;
   comments: SpaceEventComment[];
+  savedBy: ObjectId[];
 }

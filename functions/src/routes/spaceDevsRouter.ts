@@ -11,7 +11,7 @@ const spaceDevsRouter = express.Router();
 const fetchSpaceEvents = async (retryCount = 0): Promise<SpaceEvent[]> => {
   try {
     const response = await axios.get(
-      "https://ll.thespacedevs.com/2.0.0/event/upcoming/?limit=50&offset=0",
+      "https://ll.thespacedevs.com/2.0.0/event/?limit=100&offset=0",
       { timeout: 90000 }
     );
     return response.data.results;
@@ -44,6 +44,7 @@ export const updateDatabase = async () => {
         const options = { upsert: true };
         event.interested = event.interested ?? 0;
         event.comments = event.comments ?? [];
+        event.savedBy = event.savedBy ?? [];
         await client
           .db()
           .collection<SpaceEvent>("SpaceEvents")
