@@ -11,7 +11,7 @@ const spaceDevsRouter = express.Router();
 const fetchSpaceEvents = async (retryCount = 0): Promise<SpaceEvent[]> => {
   try {
     const response = await axios.get(
-      "https://ll.thespacedevs.com/2.0.0/event/?limit=100&offset=0",
+      "https://ll.thespacedevs.com/2.0.0/event/upcoming/?limit=150&offset=0",
       { timeout: 90000 }
     );
     return response.data.results;
@@ -47,7 +47,7 @@ export const updateDatabase = async () => {
         event.savedBy = event.savedBy ?? [];
         await client
           .db()
-          .collection<SpaceEvent>("SpaceEvents")
+          .collection<SpaceEvent>("spaceEvents")
           .updateOne(query, update, options);
       }
       console.log("Space Event Update Successful");
@@ -59,12 +59,42 @@ export const updateDatabase = async () => {
   }
 };
 
+//updateDatabase();
+
+let requestCount = 0;
+let lastRequestTime = Date.now();
+
+spaceDevsRouter.get("/trigger-update", async (req, res) => {
+  const currentTime = Date.now();
+  const oneHour = 60 * 60 * 1000; // One hour in milliseconds
+
+  // Reset count if more than an hour has passed since the last request
+  if (currentTime - lastRequestTime > oneHour) {
+    requestCount = 0;
+    lastRequestTime = currentTime;
+  }
+
+  // Check if the request limit has been reached
+  if (requestCount >= 15) {
+    return res.status(429).send("Request limit reached. Try again later.");
+  }
+
+  try {
+    await updateDatabase();
+    requestCount++; // Increment the request count
+    return res.status(200).send("Database updated successfully");
+  } catch (error) {
+    errorResponse(error, res);
+    return;
+  }
+});
+
 spaceDevsRouter.get(`/`, async (req, res) => {
   try {
     const client = await getClient();
     const spaceEvents: SpaceEvent[] = await client
       .db()
-      .collection<SpaceEvent>("SpaceEvents")
+      .collection<SpaceEvent>("spaceEvents")
       .find()
       .toArray();
 
@@ -85,7 +115,7 @@ spaceDevsRouter.get(`/:id`, async (req, res) => {
     const client = await getClient();
     const event = await client
       .db()
-      .collection<SpaceEvent>("SpaceEvents")
+      .collection<SpaceEvent>("spaceEvents")
       .findOne({ _id });
 
     if (!event) {
@@ -99,8 +129,8 @@ spaceDevsRouter.get(`/:id`, async (req, res) => {
 });
 
 // PATCH route to update 'interested' count of a SpaceEvent
-spaceDevsRouter.patch("/:id/interested", async (req, res) => {
-  const eventId = new ObjectId(req.params.id);
+spaceDevsRouter.patch("/:_id/interested", async (req, res) => {
+  const eventId = new ObjectId(req.params._id);
   const interestedCount = req.body.interested;
 
   // Validate interestedCount
@@ -114,7 +144,7 @@ spaceDevsRouter.patch("/:id/interested", async (req, res) => {
     const client = await getClient();
     const result = await client
       .db()
-      .collection<SpaceEvent>("SpaceEvents")
+      .collection<SpaceEvent>("spaceEvents")
       .updateOne({ _id: eventId }, { $set: { interested: interestedCount } });
 
     if (result.matchedCount === 0) {
@@ -126,6 +156,28 @@ spaceDevsRouter.patch("/:id/interested", async (req, res) => {
       .json({ message: "Space event updated successfully" });
   } catch (error) {
     return errorResponse(error, res);
+  }
+});
+
+spaceDevsRouter.patch("/:id/add-saved-by/:_id", async (req, res) => {
+  const account_id: ObjectId = new ObjectId(req.params._id);
+  const spaceEvent_id: ObjectId = new ObjectId(req.params.id);
+  try {
+    const client = await getClient();
+    const result = await client
+      .db()
+      .collection<SpaceEvent>("spaceEvents")
+      .updateOne(
+        { _id: spaceEvent_id },
+        { $addToSet: { savedBy: account_id } }
+      );
+    if (result.matchedCount) {
+      res.status(200).send("Space Event updated successfully.");
+    } else {
+      res.status(404).send("Space Event not found or no update required.");
+    }
+  } catch (error) {
+    errorResponse(error, res);
   }
 });
 
