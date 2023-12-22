@@ -1,6 +1,9 @@
 import express from "express";
-import * as functions from "firebase-functions";
 import OpenAI from "openai";
+import { config as dotenvConfig } from "dotenv";
+
+// Load environment variables
+dotenvConfig();
 
 const openaiRouter = express.Router();
 
@@ -13,13 +16,44 @@ interface AxiosError extends Error {
   request?: any;
 }
 
+export const generateTextWithOpenAI = async (
+  prompt: string
+): Promise<string> => {
+  try {
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    console.log("Starting request to openai API...");
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      model: "gpt-3.5-turbo",
+    });
+    if (chatCompletion.choices[0].message.content) {
+      return chatCompletion.choices[0].message.content;
+    } else {
+      return "";
+    }
+  } catch (error) {
+    // You can customize the error handling based on your needs
+    console.error("Error in generateTextWithOpenAI:", error);
+    throw error;
+  }
+};
+
 // Move the OpenAI client instantiation inside the route handler
 openaiRouter.post("/generate-text", async (req, res) => {
   const prompt = req.body.prompt;
   console.log("POST request prompt: ", prompt);
   // Retrieve the API key here
-  const openaiApiKey = functions.config().openai.key;
-  const openai = new OpenAI(openaiApiKey);
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   try {
     // Instantiate the OpenAI client here

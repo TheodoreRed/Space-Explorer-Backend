@@ -1,7 +1,6 @@
 import { ObjectId } from "mongodb";
 import SpaceArticle from "./SpaceArticle";
 import NASAImage from "./NASAImage";
-import SpaceEvent from "./SpaceEvent";
 
 interface UserCommentReply {
   uid: string;
@@ -27,7 +26,7 @@ export default interface Account {
   email: string;
   uniqueName: string;
   darkMode: boolean;
-  savedEvents: SpaceEvent[];
+  savedEvents: ObjectId[];
   savedArticles: SpaceArticle[];
   savedImages: NASAImage[];
   comments: UserComment[];

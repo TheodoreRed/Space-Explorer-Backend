@@ -130,7 +130,9 @@ export default interface SpaceEvent {
   expeditions: Expedition[];
   spacestations: SpaceStation[]; // Array of space stations related to the event
   program: Program[]; // Array of programs related to the event
-  interested?: number;
+  interested: number;
   comments: SpaceEventComment[];
   savedBy: ObjectId[];
+  detailedInfo: string;
+  keyWords: string[];
 }
