@@ -37,7 +37,7 @@ export const generateTextWithOpenAI = async (
     if (chatCompletion.choices[0].message.content) {
       return chatCompletion.choices[0].message.content;
     } else {
-      return "";
+      return "Error occured somewhere";
     }
   } catch (error) {
     // You can customize the error handling based on your needs

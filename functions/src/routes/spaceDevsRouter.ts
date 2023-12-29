@@ -6,8 +6,77 @@ import { errorResponse } from "./accountsRouter";
 import { ObjectId } from "mongodb";
 import { generateTextWithOpenAI } from "./openAiRouter";
 import Account from "../models/Account";
+import { Astronaut } from "../models/Astronaut";
 
 const spaceDevsRouter = express.Router();
+
+const fetchAstronauts = async (): Promise<Astronaut[] | undefined> => {
+  try {
+    const response = await axios.get(
+      `https://ll.thespacedevs.com/2.2.0/astronaut/?limit=100&offset=700`
+    );
+    return response.data.results;
+  } catch (error) {
+    console.error("Error fetching astronauts:", error);
+    return;
+  }
+};
+
+const updateAstronauts = async () => {
+  console.log("Update of astronauts has started...");
+  const allAstronauts = await fetchAstronauts();
+  if (allAstronauts) {
+    console.log("Astronauts were fetched.");
+    const client = await getClient();
+
+    // Fetch existing astronauts from the database
+    const existingAstronauts = await client
+      .db()
+      .collection<Astronaut>("astronauts")
+      .find()
+      .toArray();
+
+    // Create a lookup object
+    const existingAstronautLookup: any = {};
+    existingAstronauts.forEach((naut) => {
+      existingAstronautLookup[naut.id] = naut;
+    });
+
+    // parallel processing using Promise.all()???
+    let count = 0;
+    // Process each astronaut
+    for (const astronaut of allAstronauts) {
+      let existingAstronaut: Astronaut | undefined =
+        existingAstronautLookup[astronaut.id];
+
+      if (!existingAstronaut) {
+        count++;
+
+        let prompt = `"Based on the following key information about an astronaut, please create an extended, detailed biography in a single, cohesive paragraph: ${astronaut.name}, ${astronaut.bio}`;
+        astronaut.detailedInfo = await generateTextWithOpenAI(prompt);
+
+        prompt = `Extract the top five(5) keywords, five exactly, from the following detailed information about an astronaut: ${astronaut.detailedInfo}. No Fluff. Present in a comma seperated view format`;
+        astronaut.keywords = (await generateTextWithOpenAI(prompt)).split(",");
+        astronaut.keywords.push(astronaut.name);
+      } else {
+        astronaut.detailedInfo = existingAstronaut.detailedInfo;
+        astronaut.keywords = existingAstronaut.keywords;
+      }
+
+      const query = { id: astronaut.id };
+      const update = { $set: astronaut };
+      const options = { upsert: true };
+
+      await client
+        .db()
+        .collection<Astronaut>("astronauts")
+        .updateOne(query, update, options);
+    }
+    console.log(`${count} astronauts were added and updated successful`);
+  } else {
+    console.log("Astronauts were not fetched!!");
+  }
+};
 
 // Enhanced fetchSpaceEvents with backoff mechanism
 const fetchSpaceEvents = async (retryCount = 0): Promise<SpaceEvent[]> => {
@@ -31,12 +100,12 @@ const fetchSpaceEvents = async (retryCount = 0): Promise<SpaceEvent[]> => {
   }
 };
 
-//const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 // Database update logic
 export const updateDatabase = async () => {
   console.log("Attempting to update database...", new Date());
+  await updateAstronauts();
   try {
+    console.log("Update of space events has started...");
     const spaceEvents = await fetchSpaceEvents();
 
     if (spaceEvents) {
@@ -69,7 +138,7 @@ export const updateDatabase = async () => {
         }
 
         if (!existingEvent || !existingEvent.detailedInfo) {
-          count++; //testing
+          count++;
           let prompt = `Explain the gist of this space event to a user on my website make sure its clear and informative but not too long: ${
             event.name
           } Date:${event.date.slice(0, 10)} Short Description: ${
@@ -101,35 +170,12 @@ export const updateDatabase = async () => {
   }
 };
 
-let requestCount = 0;
-let lastRequestTime = Date.now();
+/************ 
+  Endpoints Start
+**************/
 
-spaceDevsRouter.get("/trigger-update", async (req, res) => {
-  const currentTime = Date.now();
-  const oneHour = 60 * 60 * 1000; // One hour in milliseconds
-
-  // Reset count if more than an hour has passed since the last request
-  if (currentTime - lastRequestTime > oneHour) {
-    requestCount = 0;
-    lastRequestTime = currentTime;
-  }
-
-  // Check if the request limit has been reached
-  if (requestCount >= 15) {
-    return res.status(429).send("Request limit reached. Try again later.");
-  }
-
-  try {
-    await updateDatabase();
-    requestCount++; // Increment the request count
-    return res.status(200).send("Database updated successfully");
-  } catch (error) {
-    errorResponse(error, res);
-    return;
-  }
-});
-
-spaceDevsRouter.get(`/`, async (req, res) => {
+// Get all cached space events from mongo
+spaceDevsRouter.get(`/space-events`, async (req, res) => {
   try {
     const client = await getClient();
     const spaceEvents: SpaceEvent[] = await client
@@ -149,7 +195,27 @@ spaceDevsRouter.get(`/`, async (req, res) => {
   }
 });
 
-spaceDevsRouter.get(`/:id`, async (req, res) => {
+// Get all cached astroanuts from mongo
+spaceDevsRouter.get(`/astronauts`, async (req, res) => {
+  try {
+    const client = await getClient();
+    const astronauts: Astronaut[] = await client
+      .db()
+      .collection<Astronaut>("astronauts")
+      .find()
+      .toArray();
+
+    if (!astronauts) {
+      return res.status(404).json({ message: "Failed to GET all astronauts" });
+    }
+    res.status(200).json(astronauts);
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+// Get space event by id
+spaceDevsRouter.get(`/space-events/:id`, async (req, res) => {
   const _id = new ObjectId(req.params.id);
   try {
     const client = await getClient();
@@ -163,6 +229,26 @@ spaceDevsRouter.get(`/:id`, async (req, res) => {
     }
 
     return res.status(200).json(event);
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+// Get astronaut by id
+spaceDevsRouter.get(`/astronauts/:id`, async (req, res) => {
+  const _id = new ObjectId(req.params.id);
+  try {
+    const client = await getClient();
+    const astronaut = await client
+      .db()
+      .collection<SpaceEvent>("astronauts")
+      .findOne({ _id });
+
+    if (!astronaut) {
+      return res.status(404).json({ message: "Astronaut not found" });
+    }
+
+    return res.status(200).json(astronaut);
   } catch (error) {
     return errorResponse(error, res);
   }

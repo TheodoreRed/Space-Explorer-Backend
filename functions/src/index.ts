@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/", accountRouter);
 app.use("/image", imageDownloadRouter);
-app.use("/space-events", spaceDevsRouter);
+app.use("/", spaceDevsRouter);
 app.use("/chatGPT", openaiRouter);
 
 exports.scheduledSpaceEventUpdateDatabase = functions.pubsub
