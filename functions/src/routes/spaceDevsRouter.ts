@@ -10,10 +10,12 @@ import { Astronaut } from "../models/Astronaut";
 
 const spaceDevsRouter = express.Router();
 
-const fetchAstronauts = async (): Promise<Astronaut[] | undefined> => {
+const fetchAstronauts = async (
+  offset: number
+): Promise<Astronaut[] | undefined> => {
   try {
     const response = await axios.get(
-      `https://ll.thespacedevs.com/2.2.0/astronaut/?limit=100&offset=700`
+      `https://ll.thespacedevs.com/2.2.0/astronaut/?limit=100&offset=${offset}`
     );
     return response.data.results;
   } catch (error) {
@@ -24,17 +26,20 @@ const fetchAstronauts = async (): Promise<Astronaut[] | undefined> => {
 
 const updateAstronauts = async () => {
   console.log("Update of astronauts has started...");
-  const allAstronauts = await fetchAstronauts();
+  const client = await getClient();
+
+  // Fetch existing astronauts from the database
+  const existingAstronauts = await client
+    .db()
+    .collection<Astronaut>("astronauts")
+    .find()
+    .toArray();
+  const offset = existingAstronauts.length;
+  console.log(offset);
+
+  const allAstronauts = await fetchAstronauts(offset);
   if (allAstronauts) {
     console.log("Astronauts were fetched.");
-    const client = await getClient();
-
-    // Fetch existing astronauts from the database
-    const existingAstronauts = await client
-      .db()
-      .collection<Astronaut>("astronauts")
-      .find()
-      .toArray();
 
     // Create a lookup object
     const existingAstronautLookup: any = {};
@@ -52,12 +57,19 @@ const updateAstronauts = async () => {
       if (!existingAstronaut) {
         count++;
 
-        let prompt = `"Based on the following key information about an astronaut, please create an extended, detailed biography in a single, cohesive paragraph: ${astronaut.name}, ${astronaut.bio}`;
+        let prompt = `Using the key information provided, create a comprehensive and coherent biography in a single paragraph for the astronaut. Focus on their major achievements, background, and notable contributions to space exploration. Information: Name - ${astronaut.name}, Bio - ${astronaut.bio}. Ensure the biography is factual, concise, and engaging.`;
+
         astronaut.detailedInfo = await generateTextWithOpenAI(prompt);
 
-        prompt = `Extract the top five(5) keywords, five exactly, from the following detailed information about an astronaut: ${astronaut.detailedInfo}. No Fluff. Present in a comma seperated view format`;
-        astronaut.keywords = (await generateTextWithOpenAI(prompt)).split(",");
-        astronaut.keywords.push(astronaut.name);
+        // Extract keywords
+        do {
+          astronaut.keywords = [];
+          let keywordsPrompt = `Analyze the following detailed biography and identify exactly five key terms that best summarize the astronaut's professional achievements and contributions. The terms should be specific, relevant, and distinct. Present these keywords in a comma-separated list. Biography: ${astronaut.detailedInfo}`;
+
+          let keywordsResult = await generateTextWithOpenAI(keywordsPrompt);
+          astronaut.keywords = keywordsResult.split(",");
+          astronaut.keywords.push(astronaut.name);
+        } while (astronaut.keywords.length !== 6);
       } else {
         astronaut.detailedInfo = existingAstronaut.detailedInfo;
         astronaut.keywords = existingAstronaut.keywords;
