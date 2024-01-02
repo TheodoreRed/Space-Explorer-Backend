@@ -109,68 +109,74 @@ spaceDevsRouter.get(`/astronauts/:id`, async (req, res) => {
 });
 
 // PATCH route to toggle a user's interest in a SpaceEvent
-spaceDevsRouter.patch("/:eventId/toggle-interest/:userId", async (req, res) => {
-  const eventId = new ObjectId(req.params.eventId);
-  const userId = new ObjectId(req.params.userId);
+spaceDevsRouter.patch(
+  "/space-events/:eventId/toggle-interest/:userId",
+  async (req, res) => {
+    const eventId = new ObjectId(req.params.eventId);
+    const userId = new ObjectId(req.params.userId);
 
-  try {
-    const client = await getClient();
+    try {
+      const client = await getClient();
 
-    // Retrieve the current state of the SpaceEvent
-    const spaceEvent = await client
-      .db()
-      .collection<SpaceEvent>("spaceEvents")
-      .findOne({ _id: eventId });
+      // Retrieve the current state of the SpaceEvent
+      const spaceEvent = await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .findOne({ _id: eventId });
 
-    if (!spaceEvent) {
-      return res.status(404).json({ message: "Space event not found" });
+      if (!spaceEvent) {
+        return res.status(404).json({ message: "Space event not found" });
+      }
+
+      let eventUpdate;
+      let accountUpdate: any;
+
+      if (
+        spaceEvent.savedBy.some(
+          (person) => person.toString() === userId.toString()
+        )
+      ) {
+        // User is uninterested, remove from savedBy and decrement interested
+        eventUpdate = {
+          $pull: { savedBy: userId },
+          $inc: { interested: -1 },
+        };
+        accountUpdate = { $pull: { savedEvents: { _id: eventId } } };
+      } else {
+        // User is interested, add to savedBy and increment interested
+        eventUpdate = {
+          $push: { savedBy: userId },
+          $inc: { interested: 1 },
+        };
+        accountUpdate = { $addToSet: { savedEvents: spaceEvent } };
+      }
+
+      // Update the SpaceEvent
+      const eventResult = await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .updateOne({ _id: eventId }, eventUpdate);
+
+      // Update the Account
+      const accountResult = await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne({ _id: userId }, accountUpdate);
+
+      if (
+        eventResult.modifiedCount === 0 ||
+        accountResult.modifiedCount === 0
+      ) {
+        return res.status(400).json({ message: "No update was made" });
+      }
+
+      return res
+        .status(200)
+        .json({ message: "Space event interest toggled successfully" });
+    } catch (error) {
+      return errorResponse(error, res);
     }
-
-    let eventUpdate;
-    let accountUpdate: any;
-
-    if (
-      spaceEvent.savedBy.some(
-        (person) => person.toString() === userId.toString()
-      )
-    ) {
-      // User is uninterested, remove from savedBy and decrement interested
-      eventUpdate = {
-        $pull: { savedBy: userId },
-        $inc: { interested: -1 },
-      };
-      accountUpdate = { $pull: { savedEvents: { _id: eventId } } };
-    } else {
-      // User is interested, add to savedBy and increment interested
-      eventUpdate = {
-        $push: { savedBy: userId },
-        $inc: { interested: 1 },
-      };
-      accountUpdate = { $addToSet: { savedEvents: spaceEvent } };
-    }
-
-    // Update the SpaceEvent
-    const eventResult = await client
-      .db()
-      .collection<SpaceEvent>("spaceEvents")
-      .updateOne({ _id: eventId }, eventUpdate);
-
-    // Update the Account
-    const accountResult = await client
-      .db()
-      .collection<Account>("accounts")
-      .updateOne({ _id: userId }, accountUpdate);
-
-    if (eventResult.modifiedCount === 0 || accountResult.modifiedCount === 0) {
-      return res.status(400).json({ message: "No update was made" });
-    }
-
-    return res
-      .status(200)
-      .json({ message: "Space event interest toggled successfully" });
-  } catch (error) {
-    return errorResponse(error, res);
   }
-});
+);
 
 export default spaceDevsRouter;
