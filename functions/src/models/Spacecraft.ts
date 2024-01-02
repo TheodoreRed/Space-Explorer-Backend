@@ -36,4 +36,5 @@ export default interface Spacecraft {
   status: SpacecraftStatus;
   description: string;
   spacecraft_config: SpacecraftConfig;
+  keywords: string[];
 }

@@ -3,8 +3,9 @@ import express from "express";
 import cors from "cors";
 import accountRouter from "./routes/accountsRouter";
 import imageDownloadRouter from "./routes/imageDownloadRouter";
-import spaceDevsRouter, { updateDatabase } from "./routes/spaceDevsRouter";
+import spaceDevsRouter from "./routes/spaceDevsRouter";
 import openaiRouter from "./routes/openAiRouter";
+import { updateDatabase } from "./scheduledFunctions/theSpaceDevsUpdate";
 
 const app = express();
 

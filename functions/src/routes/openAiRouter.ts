@@ -32,7 +32,7 @@ export const generateTextWithOpenAI = async (
           content: prompt,
         },
       ],
-      model: "gpt-3.5-turbo",
+      model: "gpt-4",
     });
     if (chatCompletion.choices[0].message.content) {
       return chatCompletion.choices[0].message.content;
