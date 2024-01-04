@@ -141,14 +141,14 @@ spaceDevsRouter.patch(
           $pull: { savedBy: userId },
           $inc: { interested: -1 },
         };
-        accountUpdate = { $pull: { savedEvents: { _id: eventId } } };
+        accountUpdate = { $pull: { savedEvents: eventId } };
       } else {
         // User is interested, add to savedBy and increment interested
         eventUpdate = {
           $push: { savedBy: userId },
           $inc: { interested: 1 },
         };
-        accountUpdate = { $addToSet: { savedEvents: spaceEvent } };
+        accountUpdate = { $addToSet: { savedEvents: eventId } };
       }
 
       // Update the SpaceEvent
