@@ -2,6 +2,8 @@ import express from "express";
 import { ObjectId } from "mongodb";
 import { getClient } from "../db";
 import Account from "../models/Account";
+import SpaceArticle from "../models/SpaceArticle";
+import NASAImage from "../models/NASAImage";
 
 const accountRouter = express.Router();
 
@@ -79,6 +81,78 @@ accountRouter.put("/accounts/:id", async (req, res) => {
     }
   } catch (err) {
     errorResponse(err, res);
+  }
+});
+
+// Toggle space article for a users space article array
+accountRouter.patch("/accounts/:id/toggle-article", async (req, res) => {
+  const _id: ObjectId = new ObjectId(req.params.id);
+  const article: SpaceArticle = req.body;
+  try {
+    const client = await getClient();
+    const account = await client
+      .db()
+      .collection<Account>("accounts")
+      .findOne({ _id });
+    if (account?.savedArticles.some((x) => x.id === article.id)) {
+      // User is uninterested - remove
+
+      await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne({ _id }, { $pull: { savedArticles: article } });
+
+      return res.sendStatus(204);
+    } else {
+      // User has interest! - add
+
+      await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne({ _id }, { $addToSet: { savedArticles: article } });
+
+      return res.status(200).json({ message: "Article Added successfully" });
+    }
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+// Toggle space image for a users nasa image array
+accountRouter.patch("/accounts/:id/toggle-image", async (req, res) => {
+  const _id: ObjectId = new ObjectId(req.params.id);
+  const image: NASAImage = req.body;
+  try {
+    const client = await getClient();
+    const account = await client
+      .db()
+      .collection<Account>("accounts")
+      .findOne({ _id });
+    if (
+      account?.savedImages.some(
+        (x) => x.data[0].nasa_id === image.data[0].nasa_id
+      )
+    ) {
+      // User is uninterested - remove
+
+      await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne({ _id }, { $pull: { savedImages: image } });
+
+      return res.sendStatus(204);
+    } else {
+      // User has interest! - add
+
+      await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne({ _id }, { $addToSet: { savedImages: image } });
+
+      return res.status(200).json({ message: "Image Added successfully" });
+    }
+  } catch (error) {
+    return errorResponse(error, res);
   }
 });
 
