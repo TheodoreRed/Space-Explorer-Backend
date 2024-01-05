@@ -3,7 +3,7 @@ import { getClient } from "../db";
 import SpaceEvent from "../models/SpaceEvent";
 import { errorResponse } from "./accountsRouter";
 import { ObjectId } from "mongodb";
-import Account from "../models/Account";
+import Account, { UserComment } from "../models/Account";
 import { Astronaut } from "../models/Astronaut";
 import Spacecraft from "../models/Spacecraft";
 
@@ -178,5 +178,51 @@ spaceDevsRouter.patch(
     }
   }
 );
+
+spaceDevsRouter.patch(`/space-events/:id/add-comment`, async (req, res) => {
+  const _id: ObjectId = new ObjectId(req.params.id);
+  const comment: UserComment = req.body;
+  try {
+    const client = await getClient();
+
+    const result = await client
+      .db()
+      .collection<SpaceEvent>("spaceEvents")
+      .updateOne({ _id }, { $addToSet: { comments: comment } });
+
+    if (result.modifiedCount === 0) {
+      return res
+        .status(404)
+        .send("Space Event not found or comment already exists");
+    }
+    return res.status(200).json({ message: "success" });
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+spaceDevsRouter.patch("/space-events/:id/delete-comment", async (req, res) => {
+  const _id = new ObjectId(req.params.id);
+  const commentUuid = req.body.uuid;
+
+  try {
+    const client = await getClient();
+
+    const result = await client
+      .db()
+      .collection("spaceEvents")
+      .updateOne({ _id }, { $pull: { comments: { uuid: commentUuid } } });
+
+    if (result.modifiedCount === 0) {
+      return res
+        .status(404)
+        .send("Space Event not found or comment does not exist");
+    }
+
+    return res.status(200).send("Comment deleted successfully");
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
 
 export default spaceDevsRouter;

@@ -1,7 +1,7 @@
 import express from "express";
 import { ObjectId } from "mongodb";
 import { getClient } from "../db";
-import Account from "../models/Account";
+import Account, { UserComment } from "../models/Account";
 import SpaceArticle from "../models/SpaceArticle";
 import NASAImage from "../models/NASAImage";
 
@@ -151,6 +151,52 @@ accountRouter.patch("/accounts/:id/toggle-image", async (req, res) => {
 
       return res.status(200).json({ message: "Image Added successfully" });
     }
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+accountRouter.patch(`/accounts/:id/add-comment`, async (req, res) => {
+  const _id: ObjectId = new ObjectId(req.params.id);
+  const comment: UserComment = req.body;
+  try {
+    const client = await getClient();
+
+    const result = await client
+      .db()
+      .collection<Account>("accounts")
+      .updateOne({ _id }, { $addToSet: { comments: comment } });
+
+    if (result.modifiedCount === 0) {
+      return res
+        .status(404)
+        .send("Account not found or comment already exists");
+    }
+    return res.status(200).json({ message: "Success" });
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+accountRouter.patch("/accounts/:id/delete-comment", async (req, res) => {
+  const _id = new ObjectId(req.params.id);
+  const commentUuid = req.body.uuid;
+
+  try {
+    const client = await getClient();
+
+    const result = await client
+      .db()
+      .collection("accounts")
+      .updateOne({ _id }, { $pull: { comments: { uuid: commentUuid } } });
+
+    if (result.modifiedCount === 0) {
+      return res
+        .status(404)
+        .send("Account not found or comment does not exist");
+    }
+
+    res.status(200).send("Comment deleted successfully");
   } catch (error) {
     return errorResponse(error, res);
   }

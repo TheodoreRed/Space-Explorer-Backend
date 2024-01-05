@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { UserComment } from "./Account";
 
 interface ServiceProvider {
   id: number;
@@ -98,23 +99,6 @@ interface Expedition {
   spacestation: SpaceStation;
 }
 
-interface SpaceEventCommentReply {
-  uid: string;
-  displayName: string;
-  photoURL?: string;
-  comment: string;
-  likes: number; // Number of likes for the reply
-}
-
-interface SpaceEventComment {
-  uid: string;
-  displayName: string;
-  photoURL?: string;
-  comment: string;
-  likes: number; // Number of likes for the comment
-  replies: SpaceEventCommentReply[]; // Replies to the comment
-}
-
 export default interface SpaceEvent {
   _id?: ObjectId;
   id: number;
@@ -131,7 +115,7 @@ export default interface SpaceEvent {
   spacestations: SpaceStation[]; // Array of space stations related to the event
   program: Program[]; // Array of programs related to the event
   interested: number;
-  comments: SpaceEventComment[];
+  comments: UserComment[];
   savedBy: ObjectId[];
   detailedInfo: string;
   keyWords: string[];
