@@ -225,4 +225,63 @@ spaceDevsRouter.patch("/space-events/:id/delete-comment", async (req, res) => {
   }
 });
 
+spaceDevsRouter.patch(
+  `/space-events/:id/toggle-like-comment/:userId`,
+  async (req, res) => {
+    const eventId = new ObjectId(req.params.id);
+    const userId = req.params.userId;
+    const commentUuid = req.body.uuid;
+    try {
+      const client = await getClient();
+
+      // Retrieve the current state of the SpaceEvent
+      const spaceEvent = await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .findOne({ _id: eventId });
+
+      if (!spaceEvent) {
+        return res.status(404).json({ message: "Space event not found" });
+      }
+
+      const comment = spaceEvent.comments.find((c) => c.uuid === commentUuid);
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+
+      let eventUpdate;
+      let accountUpdate;
+      if (comment.likes.includes(userId)) {
+        // User has already liked this comment, so unlike it
+        eventUpdate = { $pull: { "comments.$.likes": userId } };
+        accountUpdate = { $pull: { "comments.$.likes": userId } };
+      } else {
+        // User has not liked this comment, so like it
+        eventUpdate = { $addToSet: { "comments.$.likes": userId } };
+        accountUpdate = { $addToSet: { "comments.$.likes": userId } };
+      }
+
+      // Update the SpaceEvent
+      await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .updateOne({ _id: eventId, "comments.uuid": commentUuid }, eventUpdate);
+
+      // Update the Account - Only if the comment exists in user's account
+      await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne(
+          { uid: userId, "comments.uuid": commentUuid },
+          accountUpdate
+        );
+      return res
+        .status(200)
+        .json({ message: "Comment like status toggled successfully" });
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  }
+);
+
 export default spaceDevsRouter;
