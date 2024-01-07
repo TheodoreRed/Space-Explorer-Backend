@@ -108,6 +108,25 @@ spaceDevsRouter.get(`/astronauts/:id`, async (req, res) => {
   }
 });
 
+spaceDevsRouter.get(`/spacecrafts/:id`, async (req, res) => {
+  const _id = new ObjectId(req.params.id);
+  try {
+    const client = await getClient();
+    const craft = await client
+      .db()
+      .collection<Spacecraft>("spacecrafts")
+      .findOne({ _id });
+
+    if (!craft) {
+      return res.status(404).json({ message: "Craft not found" });
+    }
+
+    return res.status(200).json(craft);
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
 // PATCH route to toggle a user's interest in a SpaceEvent
 spaceDevsRouter.patch(
   "/space-events/:eventId/toggle-interest/:userId",
