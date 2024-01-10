@@ -156,6 +156,49 @@ accountRouter.patch("/accounts/:id/toggle-image", async (req, res) => {
   }
 });
 
+accountRouter.patch("/accounts/:id/like-comment", async (req, res) => {
+  const _id = new ObjectId(req.params.id);
+  const { commentUuid, userUid } = req.body;
+
+  if (!commentUuid || !userUid) {
+    return res
+      .status(400)
+      .json({ message: "Missing comment UUID or user UID" });
+  }
+
+  try {
+    const client = await getClient();
+
+    // Check if the comment exists
+    const commentExists = await client
+      .db()
+      .collection<Account>("accounts")
+      .findOne({ _id, "comments.uuid": commentUuid });
+
+    if (!commentExists) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    // Perform the update
+    const updateResult = await client
+      .db()
+      .collection<Account>("accounts")
+      .updateOne(
+        { _id, "comments.uuid": commentUuid },
+        { $addToSet: { "comments.$.likes": userUid } }
+      );
+
+    // Determine the response based on the update result
+    if (updateResult.modifiedCount === 0) {
+      return res.status(200).json({ message: "Comment was already liked" });
+    }
+
+    return res.status(200).json({ message: "Comment liked successfully" });
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
 accountRouter.patch(`/accounts/:id/add-comment`, async (req, res) => {
   const _id: ObjectId = new ObjectId(req.params.id);
   const comment: UserComment = req.body;
@@ -201,5 +244,74 @@ accountRouter.patch("/accounts/:id/delete-comment", async (req, res) => {
     return errorResponse(error, res);
   }
 });
+
+accountRouter.patch("/accounts/:id/add-reply-to-comment", async (req, res) => {
+  const _id = new ObjectId(req.params.id);
+  const { commentUuid, reply } = req.body;
+
+  if (!commentUuid || !reply) {
+    return res.status(400).json({ message: "Missing comment UUID or reply" });
+  }
+
+  try {
+    const client = await getClient();
+    const updateResult = await client
+      .db()
+      .collection<Account>("accounts")
+      .updateOne(
+        { _id, "comments.uuid": commentUuid },
+        { $push: { "comments.$.replies": reply } }
+      );
+
+    if (updateResult.modifiedCount === 0) {
+      return res
+        .status(404)
+        .json({ message: "Comment not found or no update made" });
+    }
+
+    return res
+      .status(200)
+      .json({ message: "Reply added successfully to the account" });
+  } catch (error) {
+    return errorResponse(error, res);
+  }
+});
+
+accountRouter.patch(
+  "/accounts/:id/delete-reply-from-comment",
+  async (req, res) => {
+    const _id = new ObjectId(req.params.id);
+    const { commentUuid, replyUuid } = req.body; // Assuming the request body contains the parent comment's UUID and the reply's UUID
+
+    if (!commentUuid || !replyUuid) {
+      return res
+        .status(400)
+        .json({ message: "Missing comment UUID or reply UUID" });
+    }
+
+    try {
+      const client = await getClient();
+      const updateResult = await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne(
+          { _id, "comments.uuid": commentUuid },
+          { $pull: { "comments.$.replies": { uuid: replyUuid } } }
+        );
+
+      if (updateResult.modifiedCount === 0) {
+        return res
+          .status(404)
+          .json({ message: "Reply not found or no update made" });
+      }
+
+      return res
+        .status(200)
+        .json({ message: "Reply deleted successfully from the account" });
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  }
+);
 
 export default accountRouter;

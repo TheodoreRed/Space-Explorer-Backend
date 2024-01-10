@@ -303,4 +303,161 @@ spaceDevsRouter.patch(
   }
 );
 
+// PATCH route to add a reply to a comment in a SpaceEvent
+spaceDevsRouter.patch(
+  "/space-events/:eventId/comments/:commentUuid/add-reply",
+  async (req, res) => {
+    const eventId = new ObjectId(req.params.eventId);
+    const commentUuid = req.params.commentUuid;
+    const reply: UserComment = req.body.reply;
+    //const isReplyToReply = req.query.isReplyToReply;
+
+    if (!reply) {
+      return res.status(400).json({ message: "No reply provided" });
+    }
+
+    try {
+      const client = await getClient();
+
+      const updateResult = await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .updateOne(
+          { _id: eventId, "comments.uuid": commentUuid },
+          { $push: { "comments.$.replies": reply } }
+        );
+
+      if (updateResult.modifiedCount === 0) {
+        return res
+          .status(404)
+          .json({ message: "Comment not found or no update made" });
+      }
+
+      return res.status(200).json({ message: "Reply added successfully" });
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  }
+);
+
+// PATCH route to delete a reply from a comment in a SpaceEvent
+spaceDevsRouter.patch(
+  "/space-events/:eventId/comments/:commentUuid/delete-reply/:replyUuid",
+  async (req, res) => {
+    const eventId = new ObjectId(req.params.eventId);
+    const commentUuid = req.params.commentUuid;
+    const replyUuid = req.params.replyUuid;
+
+    try {
+      const client = await getClient();
+      const updateResult = await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .updateOne(
+          { _id: eventId, "comments.uuid": commentUuid },
+          { $pull: { "comments.$.replies": { uuid: replyUuid } } }
+        );
+
+      if (updateResult.modifiedCount === 0) {
+        return res
+          .status(404)
+          .json({ message: "Reply not found or no update made" });
+      }
+
+      return res.status(200).json({ message: "Reply deleted successfully" });
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  }
+);
+
+spaceDevsRouter.patch(
+  `/space-events/:eventId/toggle-like-reply/:replyUuid/:userId`,
+  async (req, res) => {
+    const eventId = new ObjectId(req.params.eventId);
+    const replyUuid = req.params.replyUuid;
+    const userId = req.params.userId;
+
+    try {
+      const client = await getClient();
+
+      // Retrieve the current state of the SpaceEvent
+      const spaceEvent = await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .findOne({ _id: eventId });
+
+      if (!spaceEvent) {
+        return res.status(404).json({ message: "Space event not found" });
+      }
+
+      // Find the comment and reply
+      let commentToUpdate: UserComment | undefined;
+      let replyToUpdate: UserComment | undefined;
+      spaceEvent.comments.forEach((comment) => {
+        const foundReply = comment.replies.find(
+          (reply) => reply.uuid === replyUuid
+        );
+        if (foundReply) {
+          commentToUpdate = comment;
+          replyToUpdate = foundReply;
+        }
+      });
+
+      if (!commentToUpdate || !replyToUpdate) {
+        return res.status(404).json({ message: "Comment or reply not found" });
+      }
+
+      let eventUpdate;
+      let accountUpdate;
+      if (replyToUpdate.likes.includes(userId)) {
+        // User has already liked this reply, so unlike it
+        eventUpdate = {
+          $pull: { "comments.$[comment].replies.$[reply].likes": userId },
+        };
+        accountUpdate = {
+          $pull: { "comments.$[].replies.$[reply].likes": userId },
+        };
+      } else {
+        // User has not liked this reply, so like it
+        eventUpdate = {
+          $addToSet: { "comments.$[comment].replies.$[reply].likes": userId },
+        };
+        accountUpdate = {
+          $addToSet: { "comments.$[].replies.$[reply].likes": userId },
+        };
+      }
+
+      // Update the SpaceEvent
+      await client
+        .db()
+        .collection<SpaceEvent>("spaceEvents")
+        .updateOne({ _id: eventId }, eventUpdate, {
+          arrayFilters: [
+            { "comment.uuid": commentToUpdate.uuid },
+            { "reply.uuid": replyUuid },
+          ],
+        });
+
+      // Update the Account - Only if the comment exists in user's account
+      await client
+        .db()
+        .collection<Account>("accounts")
+        .updateOne(
+          { uid: userId, "comments.uuid": commentToUpdate.uuid },
+          accountUpdate,
+          {
+            arrayFilters: [{ "reply.uuid": replyUuid }],
+          }
+        );
+
+      return res
+        .status(200)
+        .json({ message: "Reply like status toggled successfully" });
+    } catch (error) {
+      return errorResponse(error, res);
+    }
+  }
+);
+
 export default spaceDevsRouter;
